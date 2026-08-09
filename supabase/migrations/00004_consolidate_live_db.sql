@@ -1,158 +1,61 @@
--- InfraFlow Core Schema — Final Consolidated Version (v4)
--- Tables: companies, profiles, roles, user_roles, projects, jobs, warehouses
--- Multi-tenant isolation via RLS with SECURITY DEFINER helpers (no recursion)
--- Company onboarding via SECURITY DEFINER function + Edge Function
--- Single-company membership enforced at DB level
--- Cross-tenant referential integrity via composite FK + trigger
+-- Consolidate live DB to match 00001_final_schema (v4)
+-- Transforms the existing live Supabase database to the final schema
+-- Applied via apply_migration (auto-records in schema_migrations)
 
 -- ============================================================
--- COMPANIES
+-- 1. user_roles: add id column, change PK, add company_id, single-company
 -- ============================================================
-create table public.companies (
-  id          uuid primary key default gen_random_uuid(),
-  name        varchar(200) not null,
-  code        varchar(50) not null,
-  is_active   boolean not null default true,
-  created_at  timestamptz not null default now(),
-  updated_at  timestamptz not null default now(),
-  unique (code)
-);
+alter table public.user_roles add column id uuid default gen_random_uuid();
 
-alter table public.companies enable row level security;
+update public.user_roles set id = gen_random_uuid() where id is null;
 
--- ============================================================
--- PROFILES
--- ============================================================
-create table public.profiles (
-  id          uuid primary key references auth.users(id) on delete cascade,
-  company_id  uuid references public.companies(id) on delete set null,
-  full_name   varchar(200),
-  email       varchar(320),
-  is_active   boolean not null default true,
-  created_at  timestamptz not null default now(),
-  updated_at  timestamptz not null default now()
-);
+alter table public.user_roles alter column id set not null;
 
-alter table public.profiles enable row level security;
+alter table public.user_roles drop constraint user_roles_pkey;
+alter table public.user_roles add primary key (id);
+
+alter table public.user_roles add column company_id uuid not null references public.companies(id) on delete cascade;
+
+alter table public.user_roles add constraint user_roles_user_id_key unique (user_id);
 
 -- ============================================================
--- ROLES
+-- 2. profiles: make company_id nullable, fix FK delete rule
 -- ============================================================
-create table public.roles (
-  id          uuid primary key default gen_random_uuid(),
-  name        varchar(100) not null,
-  code        varchar(50) not null,
-  description text,
-  created_at  timestamptz not null default now(),
-  unique (name),
-  unique (code)
-);
+alter table public.profiles alter column company_id drop not null;
 
-alter table public.roles enable row level security;
+alter table public.profiles drop constraint profiles_company_id_fkey;
+alter table public.profiles add constraint profiles_company_id_fkey
+  foreign key (company_id) references public.companies(id) on delete set null;
 
 -- ============================================================
--- USER_ROLES — single company per user (UNIQUE(user_id))
+-- 3. companies: make code NOT NULL
 -- ============================================================
-create table public.user_roles (
-  id          uuid primary key default gen_random_uuid(),
-  user_id     uuid not null references public.profiles(id) on delete cascade,
-  company_id  uuid not null references public.companies(id) on delete cascade,
-  role_id     uuid not null references public.roles(id) on delete cascade,
-  created_at  timestamptz not null default now(),
-  unique (user_id)
-);
-
-alter table public.user_roles enable row level security;
+alter table public.companies alter column code set not null;
 
 -- ============================================================
--- PROJECTS — unique(id, company_id) for composite FK from jobs
+-- 4. roles: add unique(name), drop duplicate index
 -- ============================================================
-create table public.projects (
-  id          uuid primary key default gen_random_uuid(),
-  company_id  uuid not null references public.companies(id) on delete cascade,
-  code        varchar(100) not null,
-  name        varchar(250) not null,
-  description text,
-  start_date  date,
-  end_date    date,
-  is_active   boolean not null default true,
-  created_at  timestamptz not null default now(),
-  updated_at  timestamptz not null default now(),
-  unique (company_id, code),
-  unique (id, company_id)
-);
+alter table public.roles add constraint roles_name_key unique (name);
 
-alter table public.projects enable row level security;
+alter table public.roles drop constraint if exists roles_code_key;
 
 -- ============================================================
--- JOBS — composite FK guarantees company_id matches project's company_id
+-- 5. projects: add unique(id, company_id) for composite FK
 -- ============================================================
-create table public.jobs (
-  id          uuid primary key default gen_random_uuid(),
-  company_id  uuid not null references public.companies(id) on delete cascade,
-  project_id  uuid not null,
-  code        varchar(100) not null,
-  name        varchar(250) not null,
-  description text,
-  start_date  date,
-  end_date    date,
-  is_active   boolean not null default true,
-  created_at  timestamptz not null default now(),
-  updated_at  timestamptz not null default now(),
-  unique (company_id, code),
-  constraint jobs_project_company_match
-    foreign key (project_id, company_id) references public.projects(id, company_id) on delete cascade
-);
-
-alter table public.jobs enable row level security;
+alter table public.projects add constraint projects_id_company_id_key unique (id, company_id);
 
 -- ============================================================
--- WAREHOUSES — manager_user_id validated by trigger (same company)
+-- 6. jobs: replace simple FK with composite FK
 -- ============================================================
-create table public.warehouses (
-  id          uuid primary key default gen_random_uuid(),
-  company_id  uuid not null references public.companies(id) on delete cascade,
-  code        varchar(100) not null,
-  name        varchar(250) not null,
-  location    varchar(500),
-  manager_user_id uuid references public.profiles(id) on delete set null,
-  is_active   boolean not null default true,
-  created_at  timestamptz not null default now(),
-  updated_at  timestamptz not null default now(),
-  unique (company_id, code)
-);
+alter table public.jobs drop constraint jobs_project_id_fkey;
 
-alter table public.warehouses enable row level security;
+alter table public.jobs add constraint jobs_project_company_match
+  foreign key (project_id, company_id) references public.projects(id, company_id) on delete cascade;
 
 -- ============================================================
--- INDEXES
--- ============================================================
-create index idx_user_roles_user_id on public.user_roles(user_id);
-create index idx_user_roles_company_id on public.user_roles(company_id);
-create index idx_profiles_company on public.profiles(company_id);
-create index idx_projects_company on public.projects(company_id);
-create index idx_jobs_company on public.jobs(company_id);
-create index idx_jobs_project on public.jobs(project_id);
-create index idx_warehouses_company on public.warehouses(company_id);
-create index idx_warehouses_manager on public.warehouses(manager_user_id);
-
--- ============================================================
--- SEED ROLES
--- ============================================================
-insert into public.roles (name, code, description) values
-  ('Company Admin', 'company_admin', 'Full access to all company data and settings'),
-  ('Warehouse Manager', 'warehouse_manager', 'Manage warehouses, stock, and material movements'),
-  ('Warehouse User', 'warehouse_user', 'Perform warehouse operations: receive, issue, transfer'),
-  ('Project Manager', 'project_manager', 'Manage projects and jobs, view material consumption'),
-  ('Viewer', 'viewer', 'Read-only access to company data')
-on conflict (name) do nothing;
-
--- ============================================================
--- SECURITY DEFINER HELPER FUNCTIONS (no RLS recursion)
+-- 7. SECURITY DEFINER HELPER FUNCTIONS (no RLS recursion)
 -- ============================================================
 
--- Returns company IDs where the authenticated user has membership.
--- Rejects unauthenticated/null callers.
 create or replace function public.get_user_company_ids(p_user_id uuid)
 returns setof uuid
 language plpgsql
@@ -167,8 +70,6 @@ begin
 end;
 $$;
 
--- Returns true if the authenticated user is a Company Admin of p_company_id.
--- Returns false for unauthenticated/null callers.
 create or replace function public.is_company_admin(p_company_id uuid)
 returns boolean
 language plpgsql
@@ -192,10 +93,9 @@ end;
 $$;
 
 -- ============================================================
--- UTILITY FUNCTIONS
+-- 8. UTILITY FUNCTIONS
 -- ============================================================
 
--- Auto-update updated_at
 create or replace function public.handle_updated_at()
 returns trigger
 language plpgsql
@@ -207,7 +107,6 @@ begin
 end;
 $$;
 
--- Auto-create profile on auth user signup
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
@@ -220,7 +119,6 @@ begin
 end;
 $$;
 
--- Protect profiles.company_id from client-side modification
 create or replace function public.protect_profile_company_id()
 returns trigger
 language plpgsql
@@ -236,7 +134,6 @@ begin
 end;
 $$;
 
--- Validate warehouse manager belongs to same company
 create or replace function public.validate_warehouse_manager()
 returns trigger
 language plpgsql
@@ -256,7 +153,6 @@ begin
 end;
 $$;
 
--- Company onboarding — atomic, verifies auth.uid() internally
 create or replace function public.onboard_company(
   p_user_id uuid,
   p_company_name text,
@@ -302,7 +198,7 @@ end;
 $$;
 
 -- ============================================================
--- RESTRICT EXECUTE PRIVILEGES ON SECURITY DEFINER FUNCTIONS
+-- 9. RESTRICT EXECUTE PRIVILEGES
 -- ============================================================
 revoke execute on function public.get_user_company_ids(uuid) from public, anon;
 grant execute on function public.get_user_company_ids(uuid) to authenticated;
@@ -318,7 +214,7 @@ revoke execute on function public.handle_new_user() from public, anon, authentic
 revoke execute on function public.validate_warehouse_manager() from public, anon, authenticated;
 
 -- ============================================================
--- TRIGGERS
+-- 10. TRIGGERS
 -- ============================================================
 create trigger companies_updated_at before update on public.companies
   for each row execute function public.handle_updated_at();
@@ -347,7 +243,13 @@ create trigger on_auth_user_created
   for each row execute function public.handle_new_user();
 
 -- ============================================================
--- RLS POLICIES (23 policies — zero recursion)
+-- 11. DROP OLD RLS POLICIES
+-- ============================================================
+drop policy if exists "companies_insert_authenticated" on public.companies;
+drop policy if exists "user_roles_insert_self_signup" on public.user_roles;
+
+-- ============================================================
+-- 12. CREATE RLS POLICIES (23 policies — zero recursion)
 -- ============================================================
 
 -- COMPANIES: no INSERT (onboarding via Edge Function only)
@@ -363,7 +265,7 @@ create policy "companies_delete_own_admin" on public.companies
   for delete to authenticated
   using (is_company_admin(id));
 
--- PROFILES: user can read/update own profile, company_id protected by trigger
+-- PROFILES
 create policy "profiles_select_own" on public.profiles
   for select to authenticated
   using (id = auth.uid());
@@ -376,12 +278,12 @@ create policy "profiles_update_own" on public.profiles
   for update to authenticated
   using (id = auth.uid());
 
--- ROLES: reference data, read-only
+-- ROLES
 create policy "roles_select_all" on public.roles
   for select to authenticated
   using (true);
 
--- USER_ROLES: no self-signup INSERT; admin-only management
+-- USER_ROLES
 create policy "user_roles_select_own" on public.user_roles
   for select to authenticated
   using (user_id = auth.uid());
@@ -398,7 +300,7 @@ create policy "user_roles_delete_company_admin" on public.user_roles
   for delete to authenticated
   using (is_company_admin(company_id));
 
--- PROJECTS: tenant isolation
+-- PROJECTS
 create policy "projects_select_own_company" on public.projects
   for select to authenticated
   using (company_id in (select * from get_user_company_ids(auth.uid())));
@@ -415,7 +317,7 @@ create policy "projects_delete_own_company" on public.projects
   for delete to authenticated
   using (company_id in (select * from get_user_company_ids(auth.uid())));
 
--- JOBS: tenant isolation
+-- JOBS
 create policy "jobs_select_own_company" on public.jobs
   for select to authenticated
   using (company_id in (select * from get_user_company_ids(auth.uid())));
@@ -432,7 +334,7 @@ create policy "jobs_delete_own_company" on public.jobs
   for delete to authenticated
   using (company_id in (select * from get_user_company_ids(auth.uid())));
 
--- WAREHOUSES: tenant isolation
+-- WAREHOUSES
 create policy "warehouses_select_own_company" on public.warehouses
   for select to authenticated
   using (company_id in (select * from get_user_company_ids(auth.uid())));
@@ -448,3 +350,9 @@ create policy "warehouses_update_own_company" on public.warehouses
 create policy "warehouses_delete_own_company" on public.warehouses
   for delete to authenticated
   using (company_id in (select * from get_user_company_ids(auth.uid())));
+
+-- ============================================================
+-- 13. INDEXES (only missing ones)
+-- ============================================================
+create index if not exists idx_user_roles_user_id on public.user_roles(user_id);
+create index if not exists idx_user_roles_company_id on public.user_roles(company_id);

@@ -44,6 +44,9 @@ const signupSchema = z.object({
   password: z
     .string()
     .min(8, { error: "Password must be at least 8 characters long." }),
+});
+
+const onboardingSchema = z.object({
   company_name: z
     .string()
     .min(2, { error: "Company name must be at least 2 characters long." })
@@ -55,15 +58,13 @@ const signupSchema = z.object({
     .toUpperCase(),
 });
 
-export async function signupWithCompany(
+export async function initiateSignup(
   formData: FormData
 ): Promise<{ message?: string; errors?: Record<string, string[]> }> {
   const validated = signupSchema.safeParse({
     full_name: formData.get("full_name"),
     email: formData.get("email"),
     password: formData.get("password"),
-    company_name: formData.get("company_name"),
-    company_code: formData.get("company_code"),
   });
 
   if (!validated.success) {
@@ -88,50 +89,47 @@ export async function signupWithCompany(
     return { message: "Signup failed. Please try again." };
   }
 
-  const { data: company, error: companyError } = await supabase
-    .from("companies")
-    .insert({
-      name: validated.data.company_name,
-      code: validated.data.company_code,
-    })
-    .select()
-    .single();
+  return {};
+}
 
-  if (companyError) {
-    return { message: "Failed to create company. Please contact support." };
-  }
-
-  const { error: profileError } = await supabase
-    .from("profiles")
-    .update({
-      company_id: company.id,
-      full_name: validated.data.full_name,
-      email: validated.data.email,
-    })
-    .eq("id", authData.user.id);
-
-  if (profileError) {
-    return { message: "Failed to create profile. Please contact support." };
-  }
-
-  const { data: adminRole } = await supabase
-    .from("roles")
-    .select("id")
-    .eq("code", "company_admin")
-    .single();
-
-  if (!adminRole) {
-    return { message: "Admin role not found. Please contact support." };
-  }
-
-  const { error: roleError } = await supabase.from("user_roles").insert({
-    user_id: authData.user.id,
-    company_id: company.id,
-    role_id: adminRole.id,
+export async function completeOnboarding(
+  formData: FormData
+): Promise<{ message?: string; errors?: Record<string, string[]> }> {
+  const validated = onboardingSchema.safeParse({
+    company_name: formData.get("company_name"),
+    company_code: formData.get("company_code"),
   });
 
-  if (roleError) {
-    return { message: "Failed to assign role. Please contact support." };
+  if (!validated.success) {
+    return { errors: z.flattenError(validated.error).fieldErrors };
+  }
+
+  const supabase = getSupabaseClient();
+  const { data: sessionData } = await supabase.auth.getSession();
+
+  if (!sessionData.session?.access_token) {
+    return { message: "Authentication session not found. Please sign in again." };
+  }
+
+  const response = await fetch(
+    `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/onboard-company`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${sessionData.session.access_token}`,
+      },
+      body: JSON.stringify({
+        company_name: validated.data.company_name,
+        company_code: validated.data.company_code,
+      }),
+    }
+  );
+
+  const result = await response.json();
+
+  if (!response.ok) {
+    return { message: result.error || "Failed to create company. Please try again." };
   }
 
   return {};
