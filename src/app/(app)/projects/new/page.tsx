@@ -1,15 +1,34 @@
 "use client";
 
-import { useActionState } from "react";
-import { createProject, type ProjectFormState } from "@/app/actions/projects";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
+import { createProject, type ProjectFormState } from "@/lib/client-projects";
+import { useCompanyData } from "@/lib/use-company-data";
 
 export default function NewProjectPage() {
-  const [state, action, pending] = useActionState<ProjectFormState, FormData>(
-    createProject,
-    undefined
-  );
+  const [pending, setPending] = useState(false);
+  const [state, setState] = useState<ProjectFormState>({});
+  const { company } = useCompanyData();
+  const router = useRouter();
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setPending(true);
+    setState({});
+
+    const formData = new FormData(e.currentTarget);
+    if (!company) return;
+    const result = await createProject(company.id, formData);
+
+    if (result.message || result.errors) {
+      setState(result);
+      setPending(false);
+    } else {
+      router.push("/projects");
+    }
+  };
 
   return (
     <div className="max-w-2xl">
@@ -23,14 +42,14 @@ export default function NewProjectPage() {
 
       <h1 className="text-2xl font-bold mb-6">New Project</h1>
 
-      {state?.message && (
+      {state.message && (
         <div className="mb-4 rounded-md bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
           {state.message}
         </div>
       )}
 
       <div className="bg-card border border-border rounded-lg p-6">
-        <form action={action} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label htmlFor="code" className="block text-sm font-medium mb-1">
               Code <span className="text-danger">*</span>
@@ -43,7 +62,7 @@ export default function NewProjectPage() {
               placeholder="e.g. PRJ-001"
               className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
             />
-            {state?.errors?.code && (
+            {state.errors?.code && (
               <p className="mt-1 text-sm text-danger">{state.errors.code[0]}</p>
             )}
           </div>
@@ -59,7 +78,7 @@ export default function NewProjectPage() {
               required
               className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
             />
-            {state?.errors?.name && (
+            {state.errors?.name && (
               <p className="mt-1 text-sm text-danger">{state.errors.name[0]}</p>
             )}
           </div>
@@ -77,33 +96,36 @@ export default function NewProjectPage() {
               rows={3}
               className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
             />
-            {state?.errors?.description && (
-              <p className="mt-1 text-sm text-danger">
-                {state.errors.description[0]}
-              </p>
-            )}
           </div>
 
           <div>
-            <label htmlFor="status" className="block text-sm font-medium mb-1">
-              Status
-            </label>
-            <select
-              id="status"
-              name="status"
-              defaultValue="active"
-              className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+            <label
+              htmlFor="start_date"
+              className="block text-sm font-medium mb-1"
             >
-              <option value="active">Active</option>
-              <option value="on_hold">On Hold</option>
-              <option value="completed">Completed</option>
-              <option value="cancelled">Cancelled</option>
-            </select>
-            {state?.errors?.status && (
-              <p className="mt-1 text-sm text-danger">
-                {state.errors.status[0]}
-              </p>
-            )}
+              Start Date
+            </label>
+            <input
+              id="start_date"
+              name="start_date"
+              type="date"
+              className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+            />
+          </div>
+
+          <div>
+            <label
+              htmlFor="end_date"
+              className="block text-sm font-medium mb-1"
+            >
+              End Date
+            </label>
+            <input
+              id="end_date"
+              name="end_date"
+              type="date"
+              className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+            />
           </div>
 
           <div className="flex items-center gap-3 pt-2">

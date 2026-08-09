@@ -1,31 +1,60 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { Pencil, Wrench, Plus } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
-import { StatusBadge, ActiveBadge } from "@/components/badge";
+import { ActiveBadge } from "@/components/badge";
 import { EmptyState } from "@/components/empty-state";
-import { toggleProjectStatus } from "@/app/actions/projects";
+import { useCompanyData } from "@/lib/use-company-data";
 import {
-  getUserCompanies,
   getProjectById,
   getJobsByProject,
-} from "@/lib/queries";
+} from "@/lib/client-queries";
+import { toggleProjectStatus } from "@/lib/client-projects";
+import type { Project, Job } from "@/types/database";
 
-export default async function ProjectDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = await params;
-  const companies = await getUserCompanies();
-  const companyId = companies[0]?.id;
+export function ProjectDetail({ projectId }: { projectId: string }) {
+  const { company } = useCompanyData();
+  const [project, setProject] = useState<Project | null>(null);
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [loading, setLoading] = useState(true);
+  const router = useRouter();
 
-  if (!companyId) notFound();
+  useEffect(() => {
+    if (!company) return;
+    Promise.all([
+      getProjectById(company.id, projectId),
+      getJobsByProject(company.id, projectId),
+    ]).then(([p, j]) => {
+      setProject(p);
+      setJobs(j);
+      setLoading(false);
+    });
+  }, [company, projectId]);
 
-  const project = await getProjectById(companyId, id);
-  if (!project) notFound();
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <p className="text-muted">Loading...</p>
+      </div>
+    );
+  }
 
-  const jobs = await getJobsByProject(companyId, id);
+  if (!project) {
+    return (
+      <EmptyState
+        title="Project Not Found"
+        description="This project may have been deleted or you don't have access."
+      />
+    );
+  }
+
+  const handleToggle = async () => {
+    await toggleProjectStatus(project.id, project.is_active);
+    setProject({ ...project, is_active: !project.is_active });
+  };
 
   return (
     <>
@@ -39,26 +68,18 @@ export default async function ProjectDetailPage({
         actions={
           <div className="flex items-center gap-2">
             <Link
-              href={`/projects/${project.id}/edit`}
+              href={`/projects/edit?id=${project.id}`}
               className="inline-flex items-center gap-2 rounded-md border border-border px-4 py-2 text-sm font-medium hover:bg-gray-50 transition-colors"
             >
               <Pencil className="h-4 w-4" />
               Edit
             </Link>
-            <form action={toggleProjectStatus}>
-              <input type="hidden" name="id" value={project.id} />
-              <input
-                type="hidden"
-                name="is_active"
-                value={String(project.is_active)}
-              />
-              <button
-                type="submit"
-                className="rounded-md border border-border px-4 py-2 text-sm font-medium hover:bg-gray-50 transition-colors"
-              >
-                {project.is_active ? "Deactivate" : "Activate"}
-              </button>
-            </form>
+            <button
+              onClick={handleToggle}
+              className="rounded-md border border-border px-4 py-2 text-sm font-medium hover:bg-gray-50 transition-colors"
+            >
+              {project.is_active ? "Deactivate" : "Activate"}
+            </button>
           </div>
         }
       />
@@ -66,9 +87,13 @@ export default async function ProjectDetailPage({
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         <div className="bg-card border border-border rounded-lg p-4">
           <div className="text-xs text-muted uppercase tracking-wider mb-1">
-            Status
+            Start Date
           </div>
-          <StatusBadge status={project.status} />
+          <div className="text-sm font-medium">
+            {project.start_date
+              ? new Date(project.start_date).toLocaleDateString()
+              : "—"}
+          </div>
         </div>
         <div className="bg-card border border-border rounded-lg p-4">
           <div className="text-xs text-muted uppercase tracking-wider mb-1">
@@ -132,9 +157,6 @@ export default async function ProjectDetailPage({
                   Name
                 </th>
                 <th className="px-5 py-3 text-left text-xs font-semibold text-muted uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-5 py-3 text-left text-xs font-semibold text-muted uppercase tracking-wider">
                   Active
                 </th>
               </tr>
@@ -144,16 +166,13 @@ export default async function ProjectDetailPage({
                 <tr key={job.id} className="hover:bg-gray-50">
                   <td className="px-5 py-3">
                     <Link
-                      href={`/jobs/${job.id}`}
+                      href={`/jobs?id=${job.id}`}
                       className="font-medium text-primary hover:underline"
                     >
                       {job.code}
                     </Link>
                   </td>
                   <td className="px-5 py-3 text-sm">{job.name}</td>
-                  <td className="px-5 py-3">
-                    <StatusBadge status={job.status} />
-                  </td>
                   <td className="px-5 py-3">
                     <ActiveBadge isActive={job.is_active} />
                   </td>

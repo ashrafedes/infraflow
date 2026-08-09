@@ -1,15 +1,36 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Plus, FolderKanban } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
-import { StatusBadge, ActiveBadge } from "@/components/badge";
-import { getUserCompanies, getProjects } from "@/lib/queries";
+import { ActiveBadge } from "@/components/badge";
+import { useCompanyData } from "@/lib/use-company-data";
+import { getProjects, type ProjectWithCounts } from "@/lib/client-queries";
+import { ProjectDetail } from "./project-detail";
 
-export default async function ProjectsPage() {
-  const companies = await getUserCompanies();
-  const companyId = companies[0]?.id;
+export default function ProjectsPage() {
+  const { company, loading } = useCompanyData();
+  const [projects, setProjects] = useState<ProjectWithCounts[]>([]);
+  const searchParams = useSearchParams();
+  const selectedId = searchParams.get("id");
 
-  if (!companyId) {
+  useEffect(() => {
+    if (!company) return;
+    getProjects(company.id).then(setProjects);
+  }, [company]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <p className="text-muted">Loading...</p>
+      </div>
+    );
+  }
+
+  if (!company) {
     return (
       <EmptyState
         title="No Company Found"
@@ -18,7 +39,9 @@ export default async function ProjectsPage() {
     );
   }
 
-  const projects = await getProjects(companyId);
+  if (selectedId) {
+    return <ProjectDetail projectId={selectedId} />;
+  }
 
   return (
     <>
@@ -65,9 +88,6 @@ export default async function ProjectsPage() {
                   Name
                 </th>
                 <th className="px-5 py-3 text-left text-xs font-semibold text-muted uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-5 py-3 text-left text-xs font-semibold text-muted uppercase tracking-wider">
                   Jobs
                 </th>
                 <th className="px-5 py-3 text-left text-xs font-semibold text-muted uppercase tracking-wider">
@@ -80,16 +100,13 @@ export default async function ProjectsPage() {
                 <tr key={project.id} className="hover:bg-gray-50">
                   <td className="px-5 py-3">
                     <Link
-                      href={`/projects/${project.id}`}
+                      href={`/projects?id=${project.id}`}
                       className="font-medium text-primary hover:underline"
                     >
                       {project.code}
                     </Link>
                   </td>
                   <td className="px-5 py-3 text-sm">{project.name}</td>
-                  <td className="px-5 py-3">
-                    <StatusBadge status={project.status} />
-                  </td>
                   <td className="px-5 py-3 text-sm text-muted">
                     {project.job_count}
                   </td>

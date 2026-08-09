@@ -9,7 +9,10 @@ export interface Company {
 
 export interface Profile {
   id: string;
+  company_id: string;
   full_name: string | null;
+  email: string | null;
+  is_active: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -17,14 +20,13 @@ export interface Profile {
 export interface Role {
   id: string;
   name: string;
+  code: string;
   description: string | null;
   created_at: string;
 }
 
 export interface UserRole {
-  id: string;
   user_id: string;
-  company_id: string;
   role_id: string;
   created_at: string;
 }
@@ -35,7 +37,8 @@ export interface Project {
   code: string;
   name: string;
   description: string | null;
-  status: "active" | "on_hold" | "completed" | "cancelled";
+  start_date: string | null;
+  end_date: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -48,7 +51,8 @@ export interface Job {
   code: string;
   name: string;
   description: string | null;
-  status: "active" | "on_hold" | "completed" | "cancelled";
+  start_date: string | null;
+  end_date: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -60,6 +64,7 @@ export interface Warehouse {
   code: string;
   name: string;
   location: string | null;
+  manager_user_id: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;

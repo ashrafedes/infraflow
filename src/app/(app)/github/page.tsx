@@ -1,3 +1,5 @@
+"use client";
+
 import { PageHeader } from "@/components/page-header";
 import {
   GitBranch,
@@ -74,16 +76,19 @@ const projectFiles = [
   { path: "src/app/(app)/projects/", description: "Project CRUD (list, new, edit, detail)" },
   { path: "src/app/(app)/jobs/", description: "Job CRUD (list, new, edit, detail)" },
   { path: "src/app/(app)/warehouses/", description: "Warehouse CRUD (list, new, edit, detail)" },
-  { path: "src/app/actions/", description: "Server Actions (auth, projects, jobs, warehouses)" },
   { path: "src/components/", description: "Shared UI components (sidebar, badges, etc.)" },
-  { path: "src/lib/supabase/", description: "Supabase client utilities (browser + server)" },
-  { path: "src/lib/queries.ts", description: "Data access layer" },
+  { path: "src/lib/supabase/client.ts", description: "Client-side Supabase singleton" },
+  { path: "src/lib/auth-context.tsx", description: "Client-side auth context provider" },
+  { path: "src/lib/client-queries.ts", description: "Client-side data queries" },
+  { path: "src/lib/client-auth.ts", description: "Client-side auth mutations" },
+  { path: "src/lib/client-projects.ts", description: "Client-side project mutations" },
+  { path: "src/lib/client-jobs.ts", description: "Client-side job mutations" },
+  { path: "src/lib/client-warehouses.ts", description: "Client-side warehouse mutations" },
   { path: "src/types/database.ts", description: "TypeScript interfaces for DB models" },
-  { path: "src/proxy.ts", description: "Auth proxy (Next.js 16 middleware replacement)" },
   { path: "supabase/migrations/", description: "SQL migration files with RLS" },
 ];
 
-export default async function GitHubPage() {
+export default function GitHubPage() {
   return (
     <>
       <PageHeader

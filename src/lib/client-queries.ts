@@ -1,4 +1,4 @@
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getSupabaseClient } from "@/lib/supabase/client";
 import type {
   Company,
   CompanyWithRole,
@@ -14,16 +14,8 @@ export interface ProjectWithCounts extends Project {
   job_count: number;
 }
 
-export async function getCurrentUser() {
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return user;
-}
-
 export async function getCurrentProfile(): Promise<Profile | null> {
-  const supabase = await createSupabaseServerClient();
+  const supabase = getSupabaseClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -34,11 +26,11 @@ export async function getCurrentProfile(): Promise<Profile | null> {
     .select("*")
     .eq("id", user.id)
     .single();
-  return data as Profile | null;
+  return data as unknown as Profile | null;
 }
 
 export async function getUserCompanies(): Promise<CompanyWithRole[]> {
-  const supabase = await createSupabaseServerClient();
+  const supabase = getSupabaseClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -56,8 +48,8 @@ export async function getUserCompanies(): Promise<CompanyWithRole[]> {
 
   if (!data) return [];
 
-  return data.map((item) => ({
-    ...(item.company as unknown as Company),
+  return data.map((item: Record<string, unknown>) => ({
+    ...(item.company as Company),
     role_name: (item.role as unknown as Role).name,
   }));
 }
@@ -65,7 +57,7 @@ export async function getUserCompanies(): Promise<CompanyWithRole[]> {
 export async function getProjects(
   companyId: string
 ): Promise<ProjectWithCounts[]> {
-  const supabase = await createSupabaseServerClient();
+  const supabase = getSupabaseClient();
 
   const { data: projects } = await supabase
     .from("projects")
@@ -75,10 +67,11 @@ export async function getProjects(
 
   if (!projects) return [];
 
-  const projectIds = projects.map((p) => p.id);
+  const typedProjects = projects as unknown as Project[];
+  const projectIds = typedProjects.map((p) => p.id);
 
   if (projectIds.length === 0) {
-    return projects.map((p) => ({ ...p, job_count: 0 }));
+    return typedProjects.map((p) => ({ ...p, job_count: 0 }));
   }
 
   const { data: jobCounts } = await supabase
@@ -87,12 +80,12 @@ export async function getProjects(
     .in("project_id", projectIds);
 
   const countMap = new Map<string, number>();
-  jobCounts?.forEach((j) => {
+  (jobCounts as unknown as { project_id: string }[] | null)?.forEach((j) => {
     const current = countMap.get(j.project_id) ?? 0;
     countMap.set(j.project_id, current + 1);
   });
 
-  return projects.map((p) => ({
+  return typedProjects.map((p: Project) => ({
     ...p,
     job_count: countMap.get(p.id) ?? 0,
   }));
@@ -102,18 +95,18 @@ export async function getProjectById(
   companyId: string,
   projectId: string
 ): Promise<Project | null> {
-  const supabase = await createSupabaseServerClient();
+  const supabase = getSupabaseClient();
   const { data } = await supabase
     .from("projects")
     .select("*")
     .eq("company_id", companyId)
     .eq("id", projectId)
     .single();
-  return data as Project | null;
+  return data as unknown as Project | null;
 }
 
 export async function getJobs(companyId: string): Promise<JobWithProject[]> {
-  const supabase = await createSupabaseServerClient();
+  const supabase = getSupabaseClient();
 
   const { data } = await supabase
     .from("jobs")
@@ -128,18 +121,21 @@ export async function getJobs(companyId: string): Promise<JobWithProject[]> {
 
   if (!data) return [];
 
-  return data.map((item) => ({
-    ...(item as unknown as Job),
-    project_name: (item.project as unknown as { name: string }).name,
-    project_code: (item.project as unknown as { code: string }).code,
-  }));
+  return (data as unknown as Record<string, unknown>[]).map((item) => {
+    const project = item.project as { name: string; code: string };
+    return {
+      ...(item as unknown as Job),
+      project_name: project.name,
+      project_code: project.code,
+    };
+  });
 }
 
 export async function getJobsByProject(
   companyId: string,
   projectId: string
 ): Promise<Job[]> {
-  const supabase = await createSupabaseServerClient();
+  const supabase = getSupabaseClient();
   const { data } = await supabase
     .from("jobs")
     .select("*")
@@ -153,7 +149,7 @@ export async function getJobById(
   companyId: string,
   jobId: string
 ): Promise<JobWithProject | null> {
-  const supabase = await createSupabaseServerClient();
+  const supabase = getSupabaseClient();
   const { data } = await supabase
     .from("jobs")
     .select(
@@ -168,17 +164,19 @@ export async function getJobById(
 
   if (!data) return null;
 
+  const item = data as unknown as Record<string, unknown>;
+  const project = item.project as { name: string; code: string };
   return {
-    ...(data as unknown as Job),
-    project_name: (data.project as unknown as { name: string }).name,
-    project_code: (data.project as unknown as { code: string }).code,
+    ...(item as unknown as Job),
+    project_name: project.name,
+    project_code: project.code,
   };
 }
 
 export async function getWarehouses(
   companyId: string
 ): Promise<Warehouse[]> {
-  const supabase = await createSupabaseServerClient();
+  const supabase = getSupabaseClient();
   const { data } = await supabase
     .from("warehouses")
     .select("*")
@@ -191,12 +189,12 @@ export async function getWarehouseById(
   companyId: string,
   warehouseId: string
 ): Promise<Warehouse | null> {
-  const supabase = await createSupabaseServerClient();
+  const supabase = getSupabaseClient();
   const { data } = await supabase
     .from("warehouses")
     .select("*")
     .eq("company_id", companyId)
     .eq("id", warehouseId)
     .single();
-  return data as Warehouse | null;
+  return data as unknown as Warehouse | null;
 }

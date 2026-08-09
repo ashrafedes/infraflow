@@ -1,15 +1,37 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Plus, Wrench } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
-import { StatusBadge, ActiveBadge } from "@/components/badge";
-import { getUserCompanies, getJobs } from "@/lib/queries";
+import { ActiveBadge } from "@/components/badge";
+import { useCompanyData } from "@/lib/use-company-data";
+import { getJobs } from "@/lib/client-queries";
+import type { JobWithProject } from "@/types/database";
+import { JobDetail } from "./job-detail";
 
-export default async function JobsPage() {
-  const companies = await getUserCompanies();
-  const companyId = companies[0]?.id;
+export default function JobsPage() {
+  const { company, loading } = useCompanyData();
+  const [jobs, setJobs] = useState<JobWithProject[]>([]);
+  const searchParams = useSearchParams();
+  const selectedId = searchParams.get("id");
 
-  if (!companyId) {
+  useEffect(() => {
+    if (!company) return;
+    getJobs(company.id).then(setJobs);
+  }, [company]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <p className="text-muted">Loading...</p>
+      </div>
+    );
+  }
+
+  if (!company) {
     return (
       <EmptyState
         title="No Company Found"
@@ -18,7 +40,9 @@ export default async function JobsPage() {
     );
   }
 
-  const jobs = await getJobs(companyId);
+  if (selectedId) {
+    return <JobDetail jobId={selectedId} />;
+  }
 
   return (
     <>
@@ -68,9 +92,6 @@ export default async function JobsPage() {
                   Project
                 </th>
                 <th className="px-5 py-3 text-left text-xs font-semibold text-muted uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-5 py-3 text-left text-xs font-semibold text-muted uppercase tracking-wider">
                   Active
                 </th>
               </tr>
@@ -80,7 +101,7 @@ export default async function JobsPage() {
                 <tr key={job.id} className="hover:bg-gray-50">
                   <td className="px-5 py-3">
                     <Link
-                      href={`/jobs/${job.id}`}
+                      href={`/jobs?id=${job.id}`}
                       className="font-medium text-primary hover:underline"
                     >
                       {job.code}
@@ -89,16 +110,13 @@ export default async function JobsPage() {
                   <td className="px-5 py-3 text-sm">{job.name}</td>
                   <td className="px-5 py-3 text-sm text-muted">
                     <Link
-                      href={`/projects/${job.project_id}`}
+                      href={`/projects?id=${job.project_id}`}
                       className="hover:underline"
                     >
                       {job.project_code}
                     </Link>
                     {" — "}
                     {job.project_name}
-                  </td>
-                  <td className="px-5 py-3">
-                    <StatusBadge status={job.status} />
                   </td>
                   <td className="px-5 py-3">
                     <ActiveBadge isActive={job.is_active} />

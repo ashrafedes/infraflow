@@ -1,15 +1,37 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Plus, Warehouse } from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import { Plus, Warehouse as WarehouseIcon } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { ActiveBadge } from "@/components/badge";
-import { getUserCompanies, getWarehouses } from "@/lib/queries";
+import { useCompanyData } from "@/lib/use-company-data";
+import { getWarehouses } from "@/lib/client-queries";
+import type { Warehouse } from "@/types/database";
+import { WarehouseDetail } from "./warehouse-detail";
 
-export default async function WarehousesPage() {
-  const companies = await getUserCompanies();
-  const companyId = companies[0]?.id;
+export default function WarehousesPage() {
+  const { company, loading } = useCompanyData();
+  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
+  const searchParams = useSearchParams();
+  const selectedId = searchParams.get("id");
 
-  if (!companyId) {
+  useEffect(() => {
+    if (!company) return;
+    getWarehouses(company.id).then(setWarehouses);
+  }, [company]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <p className="text-muted">Loading...</p>
+      </div>
+    );
+  }
+
+  if (!company) {
     return (
       <EmptyState
         title="No Company Found"
@@ -18,7 +40,9 @@ export default async function WarehousesPage() {
     );
   }
 
-  const warehouses = await getWarehouses(companyId);
+  if (selectedId) {
+    return <WarehouseDetail warehouseId={selectedId} />;
+  }
 
   return (
     <>
@@ -39,7 +63,7 @@ export default async function WarehousesPage() {
       {warehouses.length === 0 ? (
         <div className="bg-card border border-border rounded-lg">
           <EmptyState
-            icon={<Warehouse className="h-6 w-6" />}
+            icon={<WarehouseIcon className="h-6 w-6" />}
             title="No Warehouses Yet"
             description="Create your first warehouse to start managing stock and material movements."
             action={
@@ -77,7 +101,7 @@ export default async function WarehousesPage() {
                 <tr key={wh.id} className="hover:bg-gray-50">
                   <td className="px-5 py-3">
                     <Link
-                      href={`/warehouses/${wh.id}`}
+                      href={`/warehouses?id=${wh.id}`}
                       className="font-medium text-primary hover:underline"
                     >
                       {wh.code}

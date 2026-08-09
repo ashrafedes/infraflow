@@ -1,26 +1,45 @@
-import { AppShell } from "@/components/app-shell";
-import { getCurrentUser, getCurrentProfile, getUserCompanies } from "@/lib/queries";
-import { redirect } from "next/navigation";
+"use client";
 
-export default async function AuthenticatedLayout({
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/lib/auth-context";
+import { useCompanyData } from "@/lib/use-company-data";
+import { AppShell } from "@/components/app-shell";
+
+export default function AuthenticatedLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const user = await getCurrentUser();
-  if (!user) redirect("/login");
+  const { user, loading: authLoading } = useAuth();
+  const { company, profile, loading: dataLoading } = useCompanyData();
+  const router = useRouter();
 
-  const profile = await getCurrentProfile();
-  const companies = await getUserCompanies();
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.replace("/login");
+    }
+  }, [authLoading, user, router]);
 
-  const companyName = companies[0]?.name ?? null;
-  const userInitial = (profile?.full_name ?? user.email ?? "U")[0].toUpperCase();
+  if (authLoading || (user && dataLoading)) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <p className="text-muted">Loading...</p>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return null;
+  }
 
   return (
     <AppShell
-      companyName={companyName}
-      companyNameFallback="InfraFlow"
-      userInitial={userInitial}
+      companyName={company?.name ?? "—"}
+      companyCode={company?.code ?? ""}
+      userName={profile?.full_name ?? user.email ?? "User"}
+      userEmail={user.email ?? ""}
+      userRole={company?.role_name ?? "User"}
     >
       {children}
     </AppShell>

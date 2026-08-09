@@ -1,25 +1,52 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   FolderKanban,
   Wrench,
-  Warehouse,
+  Warehouse as WarehouseIcon,
   ArrowRight,
   AlertCircle,
 } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
+import { useCompanyData } from "@/lib/use-company-data";
 import {
-  getCurrentProfile,
-  getUserCompanies,
   getProjects,
   getJobs,
   getWarehouses,
-} from "@/lib/queries";
+  type ProjectWithCounts,
+} from "@/lib/client-queries";
+import type { JobWithProject, Warehouse } from "@/types/database";
 
-export default async function DashboardPage() {
-  const profile = await getCurrentProfile();
-  const companies = await getUserCompanies();
+export default function DashboardPage() {
+  const { company, profile, loading } = useCompanyData();
+  const [projects, setProjects] = useState<ProjectWithCounts[]>([]);
+  const [jobs, setJobs] = useState<JobWithProject[]>([]);
+  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
 
-  if (companies.length === 0) {
+  useEffect(() => {
+    if (!company) return;
+    Promise.all([
+      getProjects(company.id),
+      getJobs(company.id),
+      getWarehouses(company.id),
+    ]).then(([p, j, w]) => {
+      setProjects(p);
+      setJobs(j);
+      setWarehouses(w);
+    });
+  }, [company]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <p className="text-muted">Loading...</p>
+      </div>
+    );
+  }
+
+  if (!company) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center">
         <AlertCircle className="h-12 w-12 text-warning mb-4" />
@@ -31,15 +58,6 @@ export default async function DashboardPage() {
       </div>
     );
   }
-
-  const company = companies[0];
-  const roleName = company.role_name;
-
-  const [projects, jobs, warehouses] = await Promise.all([
-    getProjects(company.id),
-    getJobs(company.id),
-    getWarehouses(company.id),
-  ]);
 
   const activeProjects = projects.filter((p) => p.is_active).length;
   const activeJobs = jobs.filter((j) => j.is_active).length;
@@ -65,7 +83,7 @@ export default async function DashboardPage() {
       value: warehouses.length,
       active: activeWarehouses,
       href: "/warehouses",
-      icon: Warehouse,
+      icon: WarehouseIcon,
     },
   ];
 
@@ -73,7 +91,7 @@ export default async function DashboardPage() {
     <>
       <PageHeader
         title={`Welcome, ${profile?.full_name ?? "User"}`}
-        description={`${company.name} — ${roleName}`}
+        description={`${company.name} — ${company.role_name}`}
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
@@ -117,7 +135,7 @@ export default async function DashboardPage() {
               projects.slice(0, 5).map((project) => (
                 <Link
                   key={project.id}
-                  href={`/projects/${project.id}`}
+                  href={`/projects?id=${project.id}`}
                   className="flex items-center justify-between px-5 py-3 hover:bg-gray-50 transition-colors"
                 >
                   <div>
@@ -152,7 +170,7 @@ export default async function DashboardPage() {
               warehouses.slice(0, 5).map((wh) => (
                 <Link
                   key={wh.id}
-                  href={`/warehouses/${wh.id}`}
+                  href={`/warehouses?id=${wh.id}`}
                   className="flex items-center justify-between px-5 py-3 hover:bg-gray-50 transition-colors"
                 >
                   <div>

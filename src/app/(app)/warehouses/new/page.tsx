@@ -1,16 +1,34 @@
 "use client";
 
-import { useActionState } from "react";
-import {
-  createWarehouse,
-  type WarehouseFormState,
-} from "@/app/actions/warehouses";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
+import { createWarehouse, type WarehouseFormState } from "@/lib/client-warehouses";
+import { useCompanyData } from "@/lib/use-company-data";
 
 export default function NewWarehousePage() {
-  const [state, action, pending] =
-    useActionState<WarehouseFormState, FormData>(createWarehouse, undefined);
+  const [pending, setPending] = useState(false);
+  const [state, setState] = useState<WarehouseFormState>({});
+  const { company } = useCompanyData();
+  const router = useRouter();
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setPending(true);
+    setState({});
+    if (!company) return;
+
+    const formData = new FormData(e.currentTarget);
+    const result = await createWarehouse(company.id, formData);
+
+    if (result.message || result.errors) {
+      setState(result);
+      setPending(false);
+    } else {
+      router.push("/warehouses");
+    }
+  };
 
   return (
     <div className="max-w-2xl">
@@ -24,14 +42,14 @@ export default function NewWarehousePage() {
 
       <h1 className="text-2xl font-bold mb-6">New Warehouse</h1>
 
-      {state?.message && (
+      {state.message && (
         <div className="mb-4 rounded-md bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
           {state.message}
         </div>
       )}
 
       <div className="bg-card border border-border rounded-lg p-6">
-        <form action={action} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label htmlFor="code" className="block text-sm font-medium mb-1">
               Code <span className="text-danger">*</span>
@@ -44,7 +62,7 @@ export default function NewWarehousePage() {
               placeholder="e.g. WH-001"
               className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
             />
-            {state?.errors?.code && (
+            {state.errors?.code && (
               <p className="mt-1 text-sm text-danger">{state.errors.code[0]}</p>
             )}
           </div>
@@ -60,7 +78,7 @@ export default function NewWarehousePage() {
               required
               className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
             />
-            {state?.errors?.name && (
+            {state.errors?.name && (
               <p className="mt-1 text-sm text-danger">{state.errors.name[0]}</p>
             )}
           </div>
@@ -79,11 +97,6 @@ export default function NewWarehousePage() {
               placeholder="e.g. Riyadh, Saudi Arabia"
               className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
             />
-            {state?.errors?.location && (
-              <p className="mt-1 text-sm text-danger">
-                {state.errors.location[0]}
-              </p>
-            )}
           </div>
 
           <div className="flex items-center gap-3 pt-2">

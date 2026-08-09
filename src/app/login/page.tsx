@@ -1,14 +1,41 @@
 "use client";
 
-import { useActionState } from "react";
-import { login, type LoginState } from "@/app/actions/auth";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { loginWithPassword } from "@/lib/client-auth";
+import { useAuth } from "@/lib/auth-context";
 import Link from "next/link";
 
 export default function LoginPage() {
-  const [state, action, pending] = useActionState<LoginState, FormData>(
-    login,
-    undefined
-  );
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
+  const router = useRouter();
+  const { user } = useAuth();
+
+  if (user) {
+    router.replace("/dashboard");
+  }
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setPending(true);
+    setError(null);
+    setFieldErrors({});
+
+    const formData = new FormData(e.currentTarget);
+    const result = await loginWithPassword(formData);
+
+    if (result.message) {
+      setError(result.message);
+      setPending(false);
+    } else if (result.errors) {
+      setFieldErrors(result.errors);
+      setPending(false);
+    } else {
+      router.replace("/dashboard");
+    }
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4">
@@ -23,13 +50,13 @@ export default function LoginPage() {
         <div className="bg-card border border-border rounded-lg p-6 shadow-sm">
           <h2 className="text-xl font-semibold mb-4">Sign In</h2>
 
-          {state?.message && (
+          {error && (
             <div className="mb-4 rounded-md bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
-              {state.message}
+              {error}
             </div>
           )}
 
-          <form action={action} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label
                 htmlFor="email"
@@ -45,9 +72,9 @@ export default function LoginPage() {
                 required
                 className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
               />
-              {state?.errors?.email && (
+              {fieldErrors.email && (
                 <p className="mt-1 text-sm text-danger">
-                  {state.errors.email[0]}
+                  {fieldErrors.email[0]}
                 </p>
               )}
             </div>
@@ -67,9 +94,9 @@ export default function LoginPage() {
                 required
                 className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
               />
-              {state?.errors?.password && (
+              {fieldErrors.password && (
                 <p className="mt-1 text-sm text-danger">
-                  {state.errors.password[0]}
+                  {fieldErrors.password[0]}
                 </p>
               )}
             </div>

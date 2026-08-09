@@ -1,24 +1,50 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import { Pencil, MapPin } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { ActiveBadge } from "@/components/badge";
-import { toggleWarehouseStatus } from "@/app/actions/warehouses";
-import { getUserCompanies, getWarehouseById } from "@/lib/queries";
+import { EmptyState } from "@/components/empty-state";
+import { useCompanyData } from "@/lib/use-company-data";
+import { getWarehouseById } from "@/lib/client-queries";
+import { toggleWarehouseStatus } from "@/lib/client-warehouses";
+import type { Warehouse } from "@/types/database";
 
-export default async function WarehouseDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = await params;
-  const companies = await getUserCompanies();
-  const companyId = companies[0]?.id;
+export function WarehouseDetail({ warehouseId }: { warehouseId: string }) {
+  const { company } = useCompanyData();
+  const [warehouse, setWarehouse] = useState<Warehouse | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  if (!companyId) notFound();
+  useEffect(() => {
+    if (!company) return;
+    getWarehouseById(company.id, warehouseId).then((w) => {
+      setWarehouse(w);
+      setLoading(false);
+    });
+  }, [company, warehouseId]);
 
-  const warehouse = await getWarehouseById(companyId, id);
-  if (!warehouse) notFound();
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <p className="text-muted">Loading...</p>
+      </div>
+    );
+  }
+
+  if (!warehouse) {
+    return (
+      <EmptyState
+        title="Warehouse Not Found"
+        description="This warehouse may have been deleted or you don't have access."
+      />
+    );
+  }
+
+  const handleToggle = async () => {
+    await toggleWarehouseStatus(warehouse.id, warehouse.is_active);
+    setWarehouse({ ...warehouse, is_active: !warehouse.is_active });
+  };
 
   return (
     <>
@@ -32,26 +58,18 @@ export default async function WarehouseDetailPage({
         actions={
           <div className="flex items-center gap-2">
             <Link
-              href={`/warehouses/${warehouse.id}/edit`}
+              href={`/warehouses/edit?id=${warehouse.id}`}
               className="inline-flex items-center gap-2 rounded-md border border-border px-4 py-2 text-sm font-medium hover:bg-gray-50 transition-colors"
             >
               <Pencil className="h-4 w-4" />
               Edit
             </Link>
-            <form action={toggleWarehouseStatus}>
-              <input type="hidden" name="id" value={warehouse.id} />
-              <input
-                type="hidden"
-                name="is_active"
-                value={String(warehouse.is_active)}
-              />
-              <button
-                type="submit"
-                className="rounded-md border border-border px-4 py-2 text-sm font-medium hover:bg-gray-50 transition-colors"
-              >
-                {warehouse.is_active ? "Deactivate" : "Activate"}
-              </button>
-            </form>
+            <button
+              onClick={handleToggle}
+              className="rounded-md border border-border px-4 py-2 text-sm font-medium hover:bg-gray-50 transition-colors"
+            >
+              {warehouse.is_active ? "Deactivate" : "Activate"}
+            </button>
           </div>
         }
       />
