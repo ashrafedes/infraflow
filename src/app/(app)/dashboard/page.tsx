@@ -6,8 +6,11 @@ import {
   FolderKanban,
   Wrench,
   Warehouse as WarehouseIcon,
+  Package,
+  Truck,
   ArrowRight,
   AlertCircle,
+  AlertTriangle,
 } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { useCompanyData } from "@/lib/use-company-data";
@@ -15,15 +18,19 @@ import {
   getProjects,
   getJobs,
   getWarehouses,
+  getMaterials,
+  getSuppliers,
   type ProjectWithCounts,
 } from "@/lib/client-queries";
-import type { JobWithProject, Warehouse } from "@/types/database";
+import type { JobWithProject, Warehouse, MaterialWithDetails, SupplierWithDetails } from "@/types/database";
 
 export default function DashboardPage() {
   const { company, profile, loading } = useCompanyData();
   const [projects, setProjects] = useState<ProjectWithCounts[]>([]);
   const [jobs, setJobs] = useState<JobWithProject[]>([]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
+  const [materials, setMaterials] = useState<MaterialWithDetails[]>([]);
+  const [suppliers, setSuppliers] = useState<SupplierWithDetails[]>([]);
 
   useEffect(() => {
     if (!company) return;
@@ -31,10 +38,14 @@ export default function DashboardPage() {
       getProjects(company.id),
       getJobs(company.id),
       getWarehouses(company.id),
-    ]).then(([p, j, w]) => {
+      getMaterials(company.id),
+      getSuppliers(company.id),
+    ]).then(([p, j, w, m, s]) => {
       setProjects(p);
       setJobs(j);
       setWarehouses(w);
+      setMaterials(m);
+      setSuppliers(s);
     });
   }, [company]);
 
@@ -62,29 +73,20 @@ export default function DashboardPage() {
   const activeProjects = projects.filter((p) => p.is_active).length;
   const activeJobs = jobs.filter((j) => j.is_active).length;
   const activeWarehouses = warehouses.filter((w) => w.is_active).length;
+  const activeMaterials = materials.filter((m) => m.is_active).length;
+  const activeSuppliers = suppliers.filter((s) => s.status === "ACTIVE").length;
+  const lowStockItems = materials.filter((m) => {
+    const stock = Number(m.total_stock ?? 0);
+    const reorder = Number(m.reorder_level ?? 0);
+    return stock <= reorder;
+  });
 
   const stats = [
-    {
-      label: "Projects",
-      value: projects.length,
-      active: activeProjects,
-      href: "/projects",
-      icon: FolderKanban,
-    },
-    {
-      label: "Jobs",
-      value: jobs.length,
-      active: activeJobs,
-      href: "/jobs",
-      icon: Wrench,
-    },
-    {
-      label: "Warehouses",
-      value: warehouses.length,
-      active: activeWarehouses,
-      href: "/warehouses",
-      icon: WarehouseIcon,
-    },
+    { label: "Projects", value: projects.length, active: activeProjects, href: "/projects", icon: FolderKanban },
+    { label: "Jobs", value: jobs.length, active: activeJobs, href: "/jobs", icon: Wrench },
+    { label: "Warehouses", value: warehouses.length, active: activeWarehouses, href: "/warehouses", icon: WarehouseIcon },
+    { label: "Materials", value: materials.length, active: activeMaterials, href: "/materials", icon: Package },
+    { label: "Suppliers", value: suppliers.length, active: activeSuppliers, href: "/suppliers", icon: Truck },
   ];
 
   return (
@@ -94,7 +96,7 @@ export default function DashboardPage() {
         description={`${company.name} — ${company.role_name}`}
       />
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
         {stats.map((stat) => (
           <Link
             key={stat.label}
@@ -115,14 +117,29 @@ export default function DashboardPage() {
         ))}
       </div>
 
+      {lowStockItems.length > 0 && (
+        <div className="mb-6 bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
+          <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+          <div>
+            <h3 className="text-sm font-semibold text-amber-800">
+              {lowStockItems.length} material(s) at or below reorder level
+            </h3>
+            <p className="text-sm text-amber-700 mt-1">
+              {lowStockItems.slice(0, 3).map((m) => `${m.code} (${Number(m.total_stock ?? 0)})`).join(", ")}
+              {lowStockItems.length > 3 && ` and ${lowStockItems.length - 3} more`}
+            </p>
+            <Link href="/reports" className="text-sm text-amber-800 font-medium hover:underline mt-1 inline-block">
+              View low stock report →
+            </Link>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-card border border-border rounded-lg">
           <div className="flex items-center justify-between px-5 py-4 border-b border-border">
             <h2 className="font-semibold">Recent Projects</h2>
-            <Link
-              href="/projects"
-              className="text-sm text-primary hover:underline"
-            >
+            <Link href="/projects" className="text-sm text-primary hover:underline">
               View all
             </Link>
           </div>
@@ -154,10 +171,7 @@ export default function DashboardPage() {
         <div className="bg-card border border-border rounded-lg">
           <div className="flex items-center justify-between px-5 py-4 border-b border-border">
             <h2 className="font-semibold">Recent Warehouses</h2>
-            <Link
-              href="/warehouses"
-              className="text-sm text-primary hover:underline"
-            >
+            <Link href="/warehouses" className="text-sm text-primary hover:underline">
               View all
             </Link>
           </div>

@@ -4,13 +4,21 @@ import type {
   CompanyWithRole,
   Job,
   JobWithProject,
+  JobMaterialRequirement,
+  JobMaterialRequirementWithDetails,
+  JobMaterialUsage,
   Material,
   MaterialCategory,
+  MaterialSupplier,
+  MaterialSupplierWithDetails,
   MaterialWithDetails,
   Profile,
   Project,
   Role,
   StockMovement,
+  Supplier,
+  SupplierClassification,
+  SupplierWithDetails,
   UnitOfMeasure,
   UserWithRole,
   Warehouse,
@@ -374,7 +382,8 @@ export async function getMaterials(
       `
       *,
       category:material_categories(name),
-      unit:units_of_measure(name, abbreviation)
+      unit:units_of_measure(name, abbreviation),
+      stock:warehouse_stock(quantity)
     `
     )
     .eq("company_id", companyId)
@@ -385,11 +394,16 @@ export async function getMaterials(
   return (data as unknown as Record<string, unknown>[]).map((item) => {
     const category = item.category as { name: string } | null;
     const unit = item.unit as { name: string; abbreviation: string } | null;
+    const stockRows = item.stock as { quantity: number }[] | null;
+    const totalStock = stockRows
+      ? stockRows.reduce((sum, s) => sum + Number(s.quantity), 0)
+      : 0;
     return {
       ...(item as unknown as Material),
       category_name: category?.name ?? null,
       unit_name: unit?.name ?? null,
       unit_abbreviation: unit?.abbreviation ?? null,
+      total_stock: totalStock,
     };
   });
 }
@@ -657,6 +671,279 @@ export async function returnStockRpc(params: {
     p_reference: params.reference ?? null,
     p_notes: params.notes ?? null,
   });
+  if (error) return { success: false, error: error.message };
+  return { success: true };
+}
+
+// ============================================================
+// SUPPLIER MANAGEMENT QUERIES
+// ============================================================
+
+export async function getSupplierClassifications(
+  companyId: string
+): Promise<SupplierClassification[]> {
+  const supabase = getSupabaseClient();
+  const { data } = await supabase
+    .from("supplier_classifications")
+    .select("*")
+    .eq("company_id", companyId)
+    .order("name");
+  return (data ?? []) as unknown as SupplierClassification[];
+}
+
+export async function createSupplierClassification(
+  companyId: string,
+  name: string
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = getSupabaseClient();
+  const { error } = await supabase
+    .from("supplier_classifications")
+    .insert({ company_id: companyId, name });
+  if (error) return { success: false, error: error.message };
+  return { success: true };
+}
+
+export async function getSuppliers(
+  companyId: string
+): Promise<SupplierWithDetails[]> {
+  const supabase = getSupabaseClient();
+  const { data } = await supabase
+    .from("suppliers")
+    .select(
+      `*,
+      classification:supplier_classifications(name),
+      material_suppliers!material_suppliers_supplier_id_fkey(count)`
+    )
+    .eq("company_id", companyId)
+    .order("created_at", { ascending: false });
+  return (data ?? []).map((s: any) => ({
+    ...s,
+    classification_name: s.classification?.name ?? null,
+    material_count: s.material_suppliers?.[0]?.count ?? 0,
+  })) as unknown as SupplierWithDetails[];
+}
+
+export async function getSupplierById(
+  companyId: string,
+  supplierId: string
+): Promise<Supplier | null> {
+  const supabase = getSupabaseClient();
+  const { data } = await supabase
+    .from("suppliers")
+    .select("*")
+    .eq("company_id", companyId)
+    .eq("id", supplierId)
+    .single();
+  return data as unknown as Supplier | null;
+}
+
+export async function createSupplier(
+  supplier: Omit<Supplier, "id" | "created_at" | "updated_at">
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = getSupabaseClient();
+  const { error } = await supabase.from("suppliers").insert(supplier);
+  if (error) return { success: false, error: error.message };
+  return { success: true };
+}
+
+export async function updateSupplier(
+  supplierId: string,
+  updates: Partial<Omit<Supplier, "id" | "company_id" | "created_at" | "updated_at">>
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = getSupabaseClient();
+  const { error } = await supabase
+    .from("suppliers")
+    .update(updates)
+    .eq("id", supplierId);
+  if (error) return { success: false, error: error.message };
+  return { success: true };
+}
+
+export async function getMaterialSuppliersByMaterial(
+  materialId: string
+): Promise<MaterialSupplierWithDetails[]> {
+  const supabase = getSupabaseClient();
+  const { data } = await supabase
+    .from("material_suppliers")
+    .select(
+      `*,
+      supplier:suppliers!material_suppliers_supplier_id_fkey(code, name)`
+    )
+    .eq("material_id", materialId)
+    .order("is_preferred", { ascending: false });
+  return (data ?? []).map((ms: any) => ({
+    ...ms,
+    supplier_code: ms.supplier?.code ?? null,
+    supplier_name: ms.supplier?.name ?? null,
+    material_code: null,
+    material_name: null,
+    category_name: null,
+    unit_name: null,
+    unit_abbreviation: null,
+  })) as unknown as MaterialSupplierWithDetails[];
+}
+
+export async function getMaterialSuppliersBySupplier(
+  supplierId: string
+): Promise<MaterialSupplierWithDetails[]> {
+  const supabase = getSupabaseClient();
+  const { data } = await supabase
+    .from("material_suppliers")
+    .select(
+      `*,
+      supplier:suppliers!material_suppliers_supplier_id_fkey(code, name),
+      material:materials!material_suppliers_material_id_fkey(code, name)`
+    )
+    .eq("supplier_id", supplierId)
+    .order("is_preferred", { ascending: false });
+  return (data ?? []).map((ms: any) => ({
+    ...ms,
+    supplier_code: ms.supplier?.code ?? null,
+    supplier_name: ms.supplier?.name ?? null,
+    material_code: ms.material?.code ?? null,
+    material_name: ms.material?.name ?? null,
+    category_name: null,
+    unit_name: null,
+    unit_abbreviation: null,
+  })) as unknown as MaterialSupplierWithDetails[];
+}
+
+export async function addMaterialSupplier(
+  ms: Omit<MaterialSupplier, "id" | "created_at" | "updated_at">
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = getSupabaseClient();
+  const { error } = await supabase.from("material_suppliers").insert(ms);
+  if (error) return { success: false, error: error.message };
+  return { success: true };
+}
+
+export async function updateMaterialSupplier(
+  msId: string,
+  updates: Partial<Omit<MaterialSupplier, "id" | "company_id" | "material_id" | "supplier_id" | "created_at" | "updated_at">>
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = getSupabaseClient();
+  const { error } = await supabase
+    .from("material_suppliers")
+    .update(updates)
+    .eq("id", msId);
+  if (error) return { success: false, error: error.message };
+  return { success: true };
+}
+
+export async function removeMaterialSupplier(
+  msId: string
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = getSupabaseClient();
+  const { error } = await supabase
+    .from("material_suppliers")
+    .delete()
+    .eq("id", msId);
+  if (error) return { success: false, error: error.message };
+  return { success: true };
+}
+
+// ============================================================
+// JOB MATERIAL REQUIREMENTS QUERIES
+// ============================================================
+
+export async function getJobMaterialRequirements(
+  jobId: string
+): Promise<JobMaterialRequirementWithDetails[]> {
+  const supabase = getSupabaseClient();
+  const { data } = await supabase
+    .from("job_material_requirements")
+    .select(
+      `*,
+      material:materials!job_material_requirements_material_id_fkey(code, name, unit_id),
+      unit:units_of_measure!job_material_requirements_unit_id_fkey(name, abbreviation)`
+    )
+    .eq("job_id", jobId)
+    .order("created_at", { ascending: false });
+  return (data ?? []).map((r: any) => ({
+    ...r,
+    material_code: r.material?.code ?? null,
+    material_name: r.material?.name ?? null,
+    unit_name: r.unit?.name ?? null,
+    unit_abbreviation: r.unit?.abbreviation ?? null,
+  })) as unknown as JobMaterialRequirementWithDetails[];
+}
+
+export async function createJobMaterialRequirement(
+  req: Omit<JobMaterialRequirement, "id" | "created_at" | "updated_at">
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = getSupabaseClient();
+  const { error } = await supabase
+    .from("job_material_requirements")
+    .insert(req);
+  if (error) return { success: false, error: error.message };
+  return { success: true };
+}
+
+export async function deleteJobMaterialRequirement(
+  reqId: string
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = getSupabaseClient();
+  const { error } = await supabase
+    .from("job_material_requirements")
+    .delete()
+    .eq("id", reqId);
+  if (error) return { success: false, error: error.message };
+  return { success: true };
+}
+
+// ============================================================
+// JOB MATERIAL USAGE QUERIES
+// ============================================================
+
+export async function getJobMaterialUsage(
+  jobId: string
+): Promise<JobMaterialUsage[]> {
+  const supabase = getSupabaseClient();
+  const { data } = await supabase
+    .from("job_material_usage")
+    .select(
+      `*,
+      material:materials!job_material_usage_material_id_fkey(code, name),
+      warehouse:warehouses!job_material_usage_warehouse_id_fkey(code, name),
+      performer:profiles!job_material_usage_performed_by_fkey(full_name)`
+    )
+    .eq("job_id", jobId)
+    .order("created_at", { ascending: false });
+  return (data ?? []).map((u: any) => ({
+    ...u,
+    material_name: u.material?.name ?? null,
+    material_code: u.material?.code ?? null,
+    warehouse_name: u.warehouse?.name ?? null,
+    warehouse_code: u.warehouse?.code ?? null,
+    user_name: u.performer?.full_name ?? null,
+  })) as unknown as JobMaterialUsage[];
+}
+
+export async function issueMaterialToJobRpc(params: {
+  p_job_id: string;
+  p_material_id: string;
+  p_warehouse_id: string;
+  p_quantity: number;
+  p_reference: string | null;
+  p_notes: string | null;
+}): Promise<{ success: boolean; error?: string }> {
+  const supabase = getSupabaseClient();
+  const { error } = await supabase.rpc("issue_material_to_job", params);
+  if (error) return { success: false, error: error.message };
+  return { success: true };
+}
+
+export async function recordJobMaterialUsageRpc(params: {
+  p_job_id: string;
+  p_material_id: string;
+  p_warehouse_id: string;
+  p_usage_type: string;
+  p_quantity: number;
+  p_reference: string | null;
+  p_notes: string | null;
+}): Promise<{ success: boolean; error?: string }> {
+  const supabase = getSupabaseClient();
+  const { error } = await supabase.rpc("record_job_material_usage", params);
   if (error) return { success: false, error: error.message };
   return { success: true };
 }

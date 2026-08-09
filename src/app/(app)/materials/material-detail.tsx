@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { ArrowLeft, Edit, Package, ArrowDownToLine, ArrowUpFromLine, ArrowLeftRight, SlidersHorizontal, Undo2 } from "lucide-react";
+import { ArrowLeft, Edit, Package, ArrowDownToLine, ArrowUpFromLine, ArrowLeftRight, SlidersHorizontal, Undo2, Star, Truck } from "lucide-react";
 import { ActiveBadge } from "@/components/badge";
 import { EmptyState } from "@/components/empty-state";
 import {
@@ -15,8 +15,9 @@ import {
   transferStockRpc,
   adjustStockRpc,
   returnStockRpc,
+  getMaterialSuppliersByMaterial,
 } from "@/lib/client-queries";
-import type { MaterialWithDetails, WarehouseStock, StockMovement, Warehouse } from "@/types/database";
+import type { MaterialWithDetails, WarehouseStock, StockMovement, Warehouse, MaterialSupplierWithDetails } from "@/types/database";
 import { MOVEMENT_TYPE_LABELS } from "@/types/database";
 
 export function MaterialDetail({
@@ -32,6 +33,7 @@ export function MaterialDetail({
   const [stock, setStock] = useState<WarehouseStock[]>([]);
   const [movements, setMovements] = useState<StockMovement[]>([]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
+  const [materialSuppliers, setMaterialSuppliers] = useState<MaterialSupplierWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
   const [showEditModal, setShowEditModal] = useState(false);
   const [stockOperation, setStockOperation] = useState<"receive" | "issue" | "transfer" | "adjust" | "return" | null>(null);
@@ -42,16 +44,18 @@ export function MaterialDetail({
   const loadData = useCallback(async () => {
     if (!companyId || !materialId) return;
     setLoading(true);
-    const [mat, stk, mov, whs] = await Promise.all([
+    const [mat, stk, mov, whs, ms] = await Promise.all([
       getMaterialById(companyId, materialId),
       getWarehouseStockByMaterial(companyId, materialId),
       getStockMovementsByMaterial(companyId, materialId, 20),
       getWarehouses(companyId),
+      getMaterialSuppliersByMaterial(materialId),
     ]);
     setMaterial(mat);
     setStock(stk);
     setMovements(mov);
     setWarehouses(whs.filter((w) => w.is_active));
+    setMaterialSuppliers(ms);
     setLoading(false);
   }, [companyId, materialId]);
 
@@ -205,6 +209,64 @@ export function MaterialDetail({
                   </td>
                   <td className="px-5 py-2 text-sm text-muted">{m.reference ?? "—"}</td>
                   <td className="px-5 py-2 text-sm text-muted">{m.user_name ?? "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      <div className="mt-6 bg-card border border-border rounded-lg overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-border">
+          <h3 className="text-sm font-semibold text-muted uppercase tracking-wider flex items-center gap-2">
+            <Truck className="h-4 w-4" />
+            Suppliers
+          </h3>
+        </div>
+        {materialSuppliers.length === 0 ? (
+          <div className="px-5 py-8 text-center">
+            <Truck className="h-8 w-8 text-muted mx-auto mb-2" />
+            <p className="text-sm text-muted">No suppliers linked to this material yet.</p>
+          </div>
+        ) : (
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-border bg-gray-50">
+                <th className="px-5 py-2 text-left text-xs font-semibold text-muted uppercase">Supplier</th>
+                <th className="px-5 py-2 text-left text-xs font-semibold text-muted uppercase">SKU</th>
+                <th className="px-5 py-2 text-right text-xs font-semibold text-muted uppercase">Unit Price</th>
+                <th className="px-5 py-2 text-left text-xs font-semibold text-muted uppercase">MOQ</th>
+                <th className="px-5 py-2 text-left text-xs font-semibold text-muted uppercase">Lead Time</th>
+                <th className="px-5 py-2 text-left text-xs font-semibold text-muted uppercase">Preferred</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {materialSuppliers.map((ms) => (
+                <tr key={ms.id} className="hover:bg-gray-50">
+                  <td className="px-5 py-2">
+                    <div className="font-medium text-sm">{ms.supplier_name}</div>
+                    <div className="text-xs text-muted">{ms.supplier_code}</div>
+                  </td>
+                  <td className="px-5 py-2 text-sm text-muted">{ms.supplier_sku ?? "—"}</td>
+                  <td className="px-5 py-2 text-right text-sm font-medium">
+                    {Number(ms.unit_price).toLocaleString()} {ms.currency}
+                  </td>
+                  <td className="px-5 py-2 text-sm text-muted">
+                    {ms.minimum_order_quantity > 0 ? Number(ms.minimum_order_quantity).toLocaleString() : "—"}
+                  </td>
+                  <td className="px-5 py-2 text-sm text-muted">
+                    {ms.lead_time_days > 0 ? `${ms.lead_time_days} days` : "—"}
+                  </td>
+                  <td className="px-5 py-2">
+                    {ms.is_preferred ? (
+                      <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-600">
+                        <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
+                        Preferred
+                      </span>
+                    ) : (
+                      <span className="text-xs text-muted">—</span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

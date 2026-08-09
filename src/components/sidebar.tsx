@@ -31,8 +31,9 @@ const navItems: {
   { href: "/materials", label: "Materials", icon: Package },
   { href: "/materials/categories", label: "Categories", icon: ListTree, subItem: true },
   { href: "/materials/movements", label: "Stock Movements", icon: ArrowLeftRight, subItem: true },
-  { href: "/suppliers", label: "Suppliers", icon: Truck, disabled: true },
-  { href: "/reports", label: "Reports", icon: FileText, disabled: true },
+  { href: "/suppliers", label: "Suppliers", icon: Truck },
+  { href: "/suppliers/classifications", label: "Classifications", icon: ListTree, subItem: true },
+  { href: "/reports", label: "Reports", icon: FileText },
   { href: "/settings/users", label: "Users & Roles", icon: Users },
 ];
 

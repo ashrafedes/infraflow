@@ -176,6 +176,7 @@ export default function UsersPage() {
           <option value="warehouse_manager">Warehouse Manager</option>
           <option value="warehouse_user">Warehouse User</option>
           <option value="project_manager">Project Manager</option>
+          <option value="inspector">Inspector</option>
           <option value="viewer">Viewer</option>
         </select>
         <select
@@ -356,6 +357,7 @@ function RoleBadge({
     warehouse_manager: "bg-blue-100 text-blue-700 border-blue-200",
     warehouse_user: "bg-cyan-100 text-cyan-700 border-cyan-200",
     project_manager: "bg-indigo-100 text-indigo-700 border-indigo-200",
+    inspector: "bg-amber-100 text-amber-700 border-amber-200",
     viewer: "bg-gray-100 text-gray-600 border-gray-200",
   };
   return (
