@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { loginWithPassword } from "@/lib/client-auth";
 import { useAuth } from "@/lib/auth-context";
@@ -13,9 +13,11 @@ export default function LoginPage() {
   const router = useRouter();
   const { user } = useAuth();
 
-  if (user) {
-    router.replace("/dashboard");
-  }
+  useEffect(() => {
+    if (user) {
+      router.replace("/dashboard");
+    }
+  }, [user, router]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
