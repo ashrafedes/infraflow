@@ -126,6 +126,7 @@ export async function signupWithCompany(
 
   const { error: roleError } = await supabase.from("user_roles").insert({
     user_id: authData.user.id,
+    company_id: company.id,
     role_id: adminRole.id,
   });
 

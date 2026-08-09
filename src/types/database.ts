@@ -26,7 +26,9 @@ export interface Role {
 }
 
 export interface UserRole {
+  id: string;
   user_id: string;
+  company_id: string;
   role_id: string;
   created_at: string;
 }
