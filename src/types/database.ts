@@ -84,3 +84,31 @@ export interface JobWithProject extends Job {
   project_name: string;
   project_code: string;
 }
+
+export interface UserWithRole {
+  id: string;
+  full_name: string | null;
+  email: string | null;
+  is_active: boolean;
+  company_id: string | null;
+  created_at: string;
+  updated_at: string;
+  role_id: string;
+  role_name: string;
+  role_code: string;
+}
+
+export const ROLE_CODES = [
+  "warehouse_manager",
+  "warehouse_user",
+  "project_manager",
+  "viewer",
+] as const;
+
+export const ROLE_LABELS: Record<string, string> = {
+  company_admin: "Company Admin",
+  warehouse_manager: "Warehouse Manager",
+  warehouse_user: "Warehouse User",
+  project_manager: "Project Manager",
+  viewer: "Viewer",
+};

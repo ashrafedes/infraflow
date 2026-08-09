@@ -7,6 +7,7 @@ import type {
   Profile,
   Project,
   Role,
+  UserWithRole,
   Warehouse,
 } from "@/types/database";
 
@@ -197,4 +198,114 @@ export async function getWarehouseById(
     .eq("id", warehouseId)
     .single();
   return data as unknown as Warehouse | null;
+}
+
+// ============================================================
+// USER MANAGEMENT QUERIES
+// ============================================================
+
+export async function getCompanyUsers(
+  companyId: string
+): Promise<UserWithRole[]> {
+  const supabase = getSupabaseClient();
+  const { data } = await supabase
+    .from("user_roles")
+    .select(
+      `
+      user_id,
+      role_id,
+      company_id,
+      profile:profiles(id, full_name, email, is_active, company_id, created_at, updated_at),
+      role:roles(id, name, code)
+    `
+    )
+    .eq("company_id", companyId)
+    .order("created_at", { ascending: false });
+
+  if (!data) return [];
+
+  return (data as unknown as Record<string, unknown>[]).map((item) => {
+    const profile = item.profile as Record<string, unknown>;
+    const role = item.role as Record<string, unknown>;
+    return {
+      id: profile.id as string,
+      full_name: profile.full_name as string | null,
+      email: profile.email as string | null,
+      is_active: profile.is_active as boolean,
+      company_id: profile.company_id as string | null,
+      created_at: profile.created_at as string,
+      updated_at: profile.updated_at as string,
+      role_id: role.id as string,
+      role_name: role.name as string,
+      role_code: role.code as string,
+    };
+  });
+}
+
+export async function inviteUser(params: {
+  full_name: string;
+  email: string;
+  role_code: string;
+  is_active: boolean;
+}): Promise<{ success: boolean; error?: string }> {
+  const supabase = getSupabaseClient();
+  const { data: sessionData } = await supabase.auth.getSession();
+  if (!sessionData.session?.access_token) {
+    return { success: false, error: "Authentication session not found." };
+  }
+
+  const response = await fetch(
+    `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/invite-user`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${sessionData.session.access_token}`,
+      },
+      body: JSON.stringify(params),
+    }
+  );
+
+  const result = await response.json();
+  if (!response.ok) {
+    return { success: false, error: result.error || "Failed to invite user." };
+  }
+  return { success: true };
+}
+
+export async function updateUserRoleRpc(
+  userId: string,
+  roleCode: string
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = getSupabaseClient();
+  const { error } = await supabase.rpc("update_user_role", {
+    p_user_id: userId,
+    p_role_code: roleCode,
+  });
+  if (error) return { success: false, error: error.message };
+  return { success: true };
+}
+
+export async function setUserActiveStatusRpc(
+  userId: string,
+  isActive: boolean
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = getSupabaseClient();
+  const { error } = await supabase.rpc("set_user_active_status", {
+    p_user_id: userId,
+    p_is_active: isActive,
+  });
+  if (error) return { success: false, error: error.message };
+  return { success: true };
+}
+
+export async function removeUserFromCompanyRpc(
+  userId: string
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = getSupabaseClient();
+  const { error } = await supabase.rpc("remove_user_from_company", {
+    p_user_id: userId,
+  });
+  if (error) return { success: false, error: error.message };
+  return { success: true };
 }

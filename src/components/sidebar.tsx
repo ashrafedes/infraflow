@@ -10,8 +10,8 @@ import {
   Package,
   Truck,
   FileText,
-  Settings,
   GitBranch,
+  Users,
 } from "lucide-react";
 
 const navItems = [
@@ -23,7 +23,7 @@ const navItems = [
   { href: "/materials", label: "Materials", icon: Package, disabled: true },
   { href: "/suppliers", label: "Suppliers", icon: Truck, disabled: true },
   { href: "/reports", label: "Reports", icon: FileText, disabled: true },
-  { href: "/settings", label: "Settings", icon: Settings, disabled: true },
+  { href: "/settings/users", label: "Users & Roles", icon: Users },
 ];
 
 export function Sidebar() {
