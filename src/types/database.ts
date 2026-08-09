@@ -112,3 +112,114 @@ export const ROLE_LABELS: Record<string, string> = {
   project_manager: "Project Manager",
   viewer: "Viewer",
 };
+
+// ============================================================
+// MATERIAL MANAGEMENT TYPES
+// ============================================================
+
+export interface MaterialCategory {
+  id: string;
+  company_id: string;
+  name: string;
+  parent_id: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UnitOfMeasure {
+  id: string;
+  company_id: string;
+  name: string;
+  abbreviation: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Material {
+  id: string;
+  company_id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  category_id: string | null;
+  subcategory: string | null;
+  unit_id: string | null;
+  brand: string | null;
+  manufacturer: string | null;
+  min_stock_level: number;
+  reorder_level: number;
+  max_stock_level: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MaterialWithDetails extends Material {
+  category_name: string | null;
+  unit_name: string | null;
+  unit_abbreviation: string | null;
+}
+
+export interface WarehouseStock {
+  id: string;
+  company_id: string;
+  material_id: string;
+  warehouse_id: string;
+  quantity: number;
+  reserved: number;
+  created_at: string;
+  updated_at: string;
+  warehouse_name?: string | null;
+  warehouse_code?: string | null;
+}
+
+export interface StockMovement {
+  id: string;
+  company_id: string;
+  material_id: string;
+  warehouse_id: string;
+  movement_type: string;
+  quantity: number;
+  unit_id: string | null;
+  reference: string | null;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+  paired_movement_id: string | null;
+  material_name?: string | null;
+  material_code?: string | null;
+  warehouse_name?: string | null;
+  warehouse_code?: string | null;
+  user_name?: string | null;
+}
+
+export interface MaterialStockSummary {
+  total_stock: number;
+  total_reserved: number;
+  total_available: number;
+  warehouse_count: number;
+}
+
+export const MOVEMENT_TYPES = [
+  "RECEIPT",
+  "ISSUE",
+  "TRANSFER_IN",
+  "TRANSFER_OUT",
+  "ADJUSTMENT_IN",
+  "ADJUSTMENT_OUT",
+  "RETURN",
+] as const;
+
+export const MOVEMENT_TYPE_LABELS: Record<string, string> = {
+  RECEIPT: "Receipt",
+  ISSUE: "Issue",
+  TRANSFER_IN: "Transfer In",
+  TRANSFER_OUT: "Transfer Out",
+  ADJUSTMENT_IN: "Adjustment In",
+  ADJUSTMENT_OUT: "Adjustment Out",
+  RETURN: "Return",
+};
+
+export type StockStatus = "IN_STOCK" | "LOW_STOCK" | "OUT_OF_STOCK" | "NO_STOCK";

@@ -12,15 +12,25 @@ import {
   FileText,
   GitBranch,
   Users,
+  ListTree,
+  ArrowLeftRight,
 } from "lucide-react";
 
-const navItems = [
+const navItems: {
+  href: string;
+  label: string;
+  icon: typeof LayoutDashboard;
+  disabled?: boolean;
+  subItem?: boolean;
+}[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/projects", label: "Projects", icon: FolderKanban },
   { href: "/jobs", label: "Jobs", icon: Wrench },
   { href: "/warehouses", label: "Warehouses", icon: Warehouse },
   { href: "/github", label: "GitHub", icon: GitBranch },
-  { href: "/materials", label: "Materials", icon: Package, disabled: true },
+  { href: "/materials", label: "Materials", icon: Package },
+  { href: "/materials/categories", label: "Categories", icon: ListTree, subItem: true },
+  { href: "/materials/movements", label: "Stock Movements", icon: ArrowLeftRight, subItem: true },
   { href: "/suppliers", label: "Suppliers", icon: Truck, disabled: true },
   { href: "/reports", label: "Reports", icon: FileText, disabled: true },
   { href: "/settings/users", label: "Users & Roles", icon: Users },
@@ -69,7 +79,7 @@ export function Sidebar() {
                 isActive
                   ? "bg-primary-light text-primary"
                   : "text-foreground hover:bg-gray-100"
-              }`}
+              } ${item.subItem ? "ml-6" : ""}`}
             >
               <item.icon className="h-4 w-4" />
               <span>{item.label}</span>
